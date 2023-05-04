@@ -65,7 +65,7 @@ def delete_user(user_id):
     
     user = User.query.get(user_id)
     
-    if usern is None:
+    if user is None:
         return generate_response(
             message="User not found", status=HTTP_404_NOT_FOUND
         )
