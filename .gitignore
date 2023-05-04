@@ -5,6 +5,5 @@ __pycache__/*
 *.pyc
 /dist/
 /*.egg-info
-app/__pycache__
-app/http/__pycache__
 .env
+**/__pycache__/
