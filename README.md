@@ -49,8 +49,8 @@ Project structure:
 
 1. Clone repository.
 2. Run following commands:
-    1. python3 -m venv .venv
-    2. cd myproject
-    2. pip install requirements.txt
-    3. . .venv/bin/activate
-    4. python3 folder/api.py runserver
+    1. cd myproject
+    2. python3 -m venv .venv
+    2. . .venv/bin/activate
+    3. pip install -r requirements.txt
+    4. python3 api.py
