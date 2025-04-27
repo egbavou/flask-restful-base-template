@@ -1,8 +1,4 @@
-import os
-import jwt
-from datetime import datetime, timedelta, timezone
 from app.utils.http_code import HTTP_200_OK, HTTP_201_CREATED
-
 
 def generate_response(data=None, message=None, status=400):
     """
@@ -17,13 +13,12 @@ def generate_response(data=None, message=None, status=400):
         status_bool = True
     else:
         status_bool = False
-
+   
     return {
         "data": data,
-        "message": modify_slz_error(message, status_bool),
-        "status": status_bool,
+        "message": modify_slz_error(message,status_bool),
+        "success": status_bool,
     }, status
-
 
 def modify_slz_error(message, status):
     """
@@ -42,6 +37,10 @@ def modify_slz_error(message, status):
                 final_error = message
         elif type(message) == list:
             final_error = message
+        elif type(message) == dict:
+            keys= list(message.keys())
+            for key in keys:
+                final_error.append({"error": str(key) + ": " + str(message.get(key))})
         else:
             for key, value in message.items():
                 final_error.append({"error": str(key) + ": " + str(value[0])})
@@ -49,73 +48,54 @@ def modify_slz_error(message, status):
         final_error = None
     return final_error
 
+def request_to_json(request, status, input_data=None, message=None, response_data={}):
+    
+    data = {
+        'method': request.method,
+        'api': request.path,
+        'headers' : {
+            'user_Agent': request.headers.get('User-Agent'),
+            'accept': request.headers.get('Accpet'),
+            'host' :  request.headers.get('Host'),
+            'accept_encoding': request.headers.get('Accept-Encoding'),
+            'connection': request.headers.get('Connection')
+        },
+        'remote_addr': request.remote_addr,
+        'environ' : {
+            '_charset': request._charset,
+            'wsgi_version': str(request.environ.get('wsgi.version')),
+            'wsgi_url_scheme': str(request.environ.get('wsgi.url_scheme')),
+            'wsgi_multithread': str(request.environ.get('wsgi.multithread')),
+            'wsgi_multiprocess': str(request.environ.get('wsgi.multiprocess')),
+            'wsgi_run_once': str(request.environ.get('wsgi.run_once')),
+            'werkzeug_socket':str(request.environ.get('werkzeug.socket')),
+            'SERVER_SOFTWARE': request.environ.get('SERVER_SOFTWARE'),
+            'REQUEST_METHOD': request.environ.get('REQUEST_METHOD'),
+            'SCRIPT_NAME': request.environ.get('SCRIPT_NAME'),
+            'PATH_INFO': request.environ.get('PATH_INFO'),
+            'QUERY_STRING': request.environ.get('QUERY_STRING'),
+            'REQUEST_URI': request.environ.get('REQUEST_URI'),
+            'RAW_URI': request.environ.get('RAW_URI'),
+            'REMOTE_ADDR': request.environ.get('REMOTE_ADDR'),
+            'REMOTE_PORT': request.environ.get('REMOTE_PORT'),
+            'SERVER_NAME': request.environ.get('SERVER_NAME'),
+            'SERVER_PORT': request.environ.get('SERVER_PORT'),
+            'SERVER_PROTOCOL': request.environ.get('SERVER_PROTOCOL'),
+            'HTTP_USER_AGENT': request.environ.get('HTTP_USER_AGENT'),
+            'HTTP_ACCEPT': request.environ.get('HTTP_ACCEPT'),
+            'HTTP_POSTMAN_TOKEN': request.environ.get('HTTP_POSTMAN_TOKEN'),
+            'HTTP_HOST': request.environ.get('HTTP_HOST'),
+            'HTTP_ACCEPT_ENCODING': request.environ.get('HTTP_ACCEPT_ENCODING'),
+            'HTTP_CONNECTION': request.environ.get('HTTP_CONNECTION')
+        },
+        'response': {
+            'http_status' : status,
+            'message': message,
+            'data': response_data
+        },
+        'params' : input_data,
+        'http_status' : status,
 
-class TokenGenerator:
-    @staticmethod
-    def encode_token(user):
-        """
-        The encode_token function takes in a user object and returns a token
-        
-        :param user: The user object that we want to encode
-        :return: A token
-        """
-
-        payload = {
-            "exp": datetime.now(timezone.utc) + timedelta(days=1),
-            "id": str(user.id),
-        }
-        token = jwt.encode(payload, os.environ.get("SECRET_KEY"), algorithm="HS256")
-        return token
-
-    @staticmethod
-    def decode_token(token):
-        """
-        It takes a token, decodes it, and returns the decoded token
-        
-        :param token: The token to decode
-        :return: A dictionary with the user's id and username.
-        """
-        return jwt.decode(
-            token,
-            os.environ.get("SECRET_KEY"),
-            algorithms="HS256",
-            options={"require_exp": True},
-        )
-
-    @staticmethod
-    def check_token(token):
-        """
-        It takes a token, and returns True if the token is valid, and False if it's not
-        
-        :param token: The token to be decoded
-        :return: A boolean value.
-        """
-        try:
-            jwt.decode(
-                token,
-                os.environ.get("SECRET_KEY"),
-                algorithms="HS256",
-                options={"require_exp": True},
-            )
-            return True
-        except:
-            return False
-
-    @staticmethod
-    def get_user_id(token):
-        """
-        It decodes the token, and returns the user's id
-        
-        :param token: The token that was sent to the server
-        :return: The user id is being returned.
-        """
-        data = jwt.decode(
-            token,
-            os.environ.get("SECRET_KEY"),
-            algorithms="HS256",
-            options={"require_exp": True},
-        )
-        return data["id"]
-
-
-token_generator = TokenGenerator()
+    }
+    
+    return data

@@ -1,28 +1,42 @@
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, fields, validate, ValidationError, validates_schema
 
-
-# "This class defines the input schema for the CreateSignup mutation. It requires a username, email,
-# and password. The username must be at least 4 characters long, and the password must be at least 6
-# characters long."
-#
-# The input schema is used to validate the input data before it is passed to the mutation
-class CreateUserInputSchema(Schema):
-    # the 'required' argument ensures the field exists
-    first_name = fields.Str(required=True, validate=validate.Length(min=2))
-    last_name = fields.Str(required=True, validate=validate.Length(min=2))
-    username = fields.Str(required=True, validate=validate.Length(min=2))
-    email = fields.Email(required=False)
-    phone_number = fields.Str(required=False)
-    age = fields.Integer(required=True)
-
-
-class EditUserInputSchema(Schema):
-    # the 'required' argument ensures the field exists
-    # the 'required' argument ensures the field exists
-    first_name = fields.Str(required=False, validate=validate.Length(min=2))
-    last_name = fields.Str(required=False, validate=validate.Length(min=2))
-    username = fields.Str(required=False, validate=validate.Length(min=2))
-    email = fields.Email(required=False)
-    phone_number = fields.Str(required=False)
-    age = fields.Integer(required=False)
+class SendResetPasswordCodeSchema(Schema):
     
+    email = fields.Email(required=False)
+    phone_number = fields.String(required=False)
+    
+    @validates_schema
+    def validate_email_or_phone_number(self, data, **kwargs):
+        if data.get('email') is None and data.get('phone_number') is None: 
+            raise ValidationError("The phone number field is required when email is not present.")
+        
+class CheckResetPasswordCodeSchema(Schema):
+    
+    email = fields.Email(required=False)
+    phone_number = fields.String(required=False)
+    code = fields.Integer(required=True)
+    
+    @validates_schema
+    def validate_email_or_phone_number(self, data, **kwargs):
+        if data.get('email') is None and data.get('phone_number') is None: 
+            raise ValidationError("The phone number field is required when email is not present.")
+        
+class ResetPasswordSchema(Schema):
+    
+    email = fields.Email(required=False)
+    phone_number = fields.String(required=False)
+    code = fields.Integer(required=True)
+    password = fields.String(required=True)
+    
+    @validates_schema
+    def validate_email_or_phone_number(self, data, **kwargs):
+        if data.get('email') is None and data.get('phone_number') is None: 
+            raise ValidationError("The phone number field is required when email is not present.")
+        
+class VerifyEmailCodeSchema(Schema):
+    
+    code = fields.Integer(required=True)
+
+class UpdateDeviceIdInputSchema(Schema):
+    
+    device_id = fields.Str(required=True)

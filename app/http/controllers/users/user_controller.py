@@ -1,146 +1,232 @@
-import json
-# import jwt
-# import datetime
-# from api import db
 from app.models.users.user_model import User
-from app.utils.common import generate_response
-from app.http.requests.users.user_request import CreateUserInputSchema, EditUserInputSchema
-from db import db
-from app.utils.http_code import HTTP_200_OK, HTTP_201_CREATED, HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND
+from app.utils.common import generate_response, request_to_json
+from app.http.requests.users.user_request import SendResetPasswordCodeSchema,ResetPasswordSchema,\
+    CheckResetPasswordCodeSchema,VerifyEmailCodeSchema, UpdateDeviceIdInputSchema
+from db import db_session_master, db_session_slave
+from app.utils.http_code import HTTP_200_OK, HTTP_201_CREATED,HTTP_500_INTERNAL_SERVER_ERROR, HTTP_400_BAD_REQUEST
+import random
+from flask_bcrypt import generate_password_hash
+from flask_jwt_extended import current_user
+from flask_jwt_extended import jwt_required
+from datetime import datetime 
 
-def create_user(request, input_data):
+def send_reset_password_code(request, input_data):
     """
-    It creates a new user
+    It's use for send reset password code
     :param request: The request object
     :param input_data: This is the data that is passed to the function
     :return: A response object
     """
-    create_validation_schema = CreateUserInputSchema()
-    errors = create_validation_schema.validate(input_data)
+        
+    validator = SendResetPasswordCodeSchema()
+    errors = validator.validate(input_data)
+    
     if errors:
+        
         return generate_response(message=errors)
-    check_username_exist = User.query.filter_by(
-        username=input_data.get("username")
-    ).first()
     
-    check_email_exist = User.query.filter_by(email=input_data.get("email")).first()
-    
-    check_phone_number_exist = User.query.filter_by(phone_number=input_data.get("phone_number")).first()
-    
-    if check_username_exist:
-        return generate_response(
-            message="Username already exist", status=HTTP_400_BAD_REQUEST
-        )
-    elif check_email_exist:
-        return generate_response(
-            message="Email  already taken", status=HTTP_400_BAD_REQUEST
-        )
-    elif check_phone_number_exist:
-        return generate_response(
-            message="Phone number  already taken", status=HTTP_400_BAD_REQUEST
-        )
+    if input_data.get('phone_number') is not None:
+        user = db_session_slave.query(User.id, User.username).filter(User.phone_number==input_data.get('phone_number')).first()
+    elif input_data.get('email') is not None:
+        user = db_session_slave.query(User.id,User.username).filter(User.email==input_data.get('email')).first()
+    db_session_slave.commit()
 
-    new_user = User(**input_data)  # Create an instance of the User class
-    db.session.add(new_user)  # Adds new User record to database
-    db.session.commit()  # Comment
-    
-    return generate_response(
-        data=input_data, message="User Created", status=HTTP_201_CREATED
-    )
-    
-def user_list(user_id=None): 
-    
-    if user_id: 
-        data = User.query.filter_by(id=user_id).first()
-        data = data.json()
+    if user is None:
+        
+        return generate_response(
+            message="WRONG DATA",
+            status=HTTP_200_OK
+        )
+                
     else:
-        data = User.query.all()
-        data =  [user.json() for user in User.query.all()]
-    
-    return generate_response(
-        data=data, status=HTTP_200_OK
-    )
-
-def delete_user(user_id):
-    
-    user = User.query.get(user_id)
-    
-    if user is None:
+        code =  random.randint(10000,99999)
+        
+        db_session_master.query(User).filter(User.id==user.id).update({
+            'reset_password_code' : code
+        })
+        db_session_master.commit()
+        
+        # send_reset_password_code_job.delay({
+        #     'username': user.username,
+        #     'phone_number': input_data.get('phone_number'),
+        #     'email': input_data.get('email'),
+        #     'code': code
+        # })
+        
         return generate_response(
-            message="User not found", status=HTTP_404_NOT_FOUND
+            data=code,
+            message="The reset code is send successfully",
+            status=HTTP_200_OK
         )
         
-    db.session.delete(user)
-    db.session.commit()
+def check_reset_password_code(request, input_data):
+                
+    validator = CheckResetPasswordCodeSchema()
+    errors = validator.validate(input_data)
+    
+    if errors:
+        
+        return generate_response(message=errors)
+    
+    if input_data.get('phone_number') is not None:
+        user = db_session_slave.query(User.id).filter(User.phone_number==input_data.get('phone_number'),User.reset_password_code==input_data.get('code')).first()
+    elif input_data.get('email') is not None:
+        user = db_session_slave.query(User.id).filter(User.email==input_data.get('email'),User.reset_password_code==input_data.get('code')).first()
+        
+    db_session_slave.commit()
+    
+    if user is None:
+        
+        return generate_response(
+            message="WRONG CODE",
+            status=HTTP_200_OK
+        )
     
     return generate_response(
-        data=user.json(), status=HTTP_200_OK
+        message="GOOD CODE",
+        status=HTTP_200_OK
     )
-        
-def edit_user(request, input_data,user_id):
     
+def reset_password(request, input_data):
+                
     """
-    It creates a new user
+    It's use for login
     :param request: The request object
     :param input_data: This is the data that is passed to the function
     :return: A response object
     """
     
-    user = User.query.get(user_id)
-    
-    if user is None:
-        return generate_response(
-            message="User not found", status=HTTP_404_NOT_FOUND
-        )
-        
-    edit_validation_schema = EditUserInputSchema()
-    errors = edit_validation_schema.validate(input_data)
-    
+    validator = ResetPasswordSchema()
+    errors = validator.validate(input_data)
     if errors:
+            
         return generate_response(message=errors)
     
-    check_username_exist = User.query.filter_by(
-        username=input_data.get("username"),
-    ).first()
+    if input_data.get('phone_number') is not None:
+        user = db_session_slave.query(User.id)\
+            .filter(
+                User.phone_number==input_data.get('phone_number'),
+                User.reset_password_code==input_data.get('code')
+            ).first()
+    elif input_data.get('email') is not None:
+        user = db_session_slave.query(User)\
+            .filter(
+                User.email==input_data.get('email'),
+                User.reset_password_code==input_data.get('code')
+            ).first()
+    db_session_slave.commit()
     
-    check_email_exist = User.query.filter_by(
-        email=input_data.get("email"),
-    ).first()
-    
-    check_phone_number_exist = User.query.filter_by(
-        phone_number=input_data.get("phone_number"),
-    ).first()
-    
-    if check_username_exist and check_username_exist.id != user.id:
+    if user is None:
+        
         return generate_response(
-            message="Username already exist", status=HTTP_400_BAD_REQUEST
-        )
-    elif check_email_exist and check_username_exist.id != user.id:
-        return generate_response(
-            message="Email  already taken", status=HTTP_400_BAD_REQUEST
-        )
-    elif check_phone_number_exist and check_username_exist.id != user.id:
-        return generate_response(
-            message="Phone number  already taken", status=HTTP_400_BAD_REQUEST
+            data= None,
+            message="WRONG CODE",
+            status=HTTP_200_OK
         )
         
-    if input_data.get('age'):
-        user.age = input_data.get('age')
+    db_session_master.query(User).filter(User.id==user.id).update({
+        'password' : generate_password_hash(input_data.get('password')).decode("utf8"),
+        'reset_password_code' : None
+    })
+    db_session_master.commit()
         
-    if input_data.get('phone_number'):
-        user.phone_number = input_data.get('phone_number')
-        
-    if input_data.get('username'):
-        user.username = input_data.get('username')
-        
-    if input_data.get('last_name'):
-        user.last_name = input_data.get('last_name')
-        
-    if input_data.get('first_name'):
-        user.first_name = input_data.get('first_name')
+    return generate_response(
+        data= {
+            'data': input_data,
+        },
+        message="The reset code is reset successfully",
+        status=HTTP_201_CREATED
+    )
+    
 
-    db.session.commit()
+@jwt_required()
+def send_verify_email_code(request):
+        
+    code = random.randint(10000,99999)
+
+    db_session_master.query(User).filter(User.id==current_user.id).update({
+        'verify_email_code': code
+    })
+    db_session_master.commit()
+    
+    # send_verify_email_code_job.delay({
+    #     'username': current_user.username,
+    #     'email': current_user.email,
+    #     'code':  code
+    # })
     
     return generate_response(
-        data=input_data, message="User Edited", status=HTTP_201_CREATED
+        data=code,
+        message="Success",
+        status=HTTP_200_OK
+    )
+   
+
+@jwt_required()
+def verify_email(request, input_data):
+            
+    validator = VerifyEmailCodeSchema()
+    errors = validator.validate(input_data)
+    
+    if errors:
+        
+        return generate_response(message=errors)
+    
+    user = db_session_slave.query(User.id)\
+        .filter(
+            User.id==current_user.id,
+            User.verify_email_code ==input_data.get('code')
+        ).first()
+    db_session_slave.commit()
+
+    if user is None:
+            
+        return generate_response(
+            message="WRONG CODE",
+            status=HTTP_200_OK
+        )
+        
+    user = db_session_master.query(User).filter(User.id==current_user.id).update({
+        'verify_email_code': None,
+        'email_verified_at': datetime.utcnow().date().strftime('%Y-%m-%d')
+    })
+    db_session_master.commit()
+        
+    return generate_response(
+        message="Success",
+        status=HTTP_200_OK
+    )
+
+@jwt_required()
+def update_notification_device_id(request, input_data):
+        
+    validator = UpdateDeviceIdInputSchema()
+    errors = validator.validate(input_data)
+    
+    # user_id = current_user.id
+        
+    if errors:
+        
+        return generate_response(message=errors)
+    
+    # try:
+    #     try:
+    #         db_session_master.query(UserHasDevice).filter(
+    #             UserHasDevice.device_id==input_data.get('device_id')
+    #         ).delete()
+    #         user_has_device = UserHasDevice(
+    #             user_id,
+    #             input_data.get('device_id')
+    #         )
+    #         db_session_master.add(user_has_device)
+    #         db_session_master.commit()
+    #     except:
+    #         db_session_master.rollback()
+    # except:
+    #     db_session_master.rollback()
+            
+    return generate_response(
+        data=input_data,
+        message="Updated Successfully",
+        status=HTTP_200_OK
     )

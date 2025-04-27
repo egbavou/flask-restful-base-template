@@ -1,68 +1,71 @@
 from flask import Response
 from flask_restful import Resource
 from flask import request, make_response
-from app.http.controllers.users.user_controller import create_user,user_list,delete_user,edit_user
+from app.http.controllers.users.user_controller import  send_reset_password_code, check_reset_password_code, reset_password, \
+send_verify_email_code, verify_email, update_notification_device_id
 
-
-class UserResource(Resource):
+class SendResetPasswordCodeResource(Resource):
     @staticmethod
     def post() -> Response:
         """
         POST response method for creating user.
-
         :return: JSON object
         """
         input_data = request.get_json()
-        response, status = create_user(request, input_data)
+        response, status = send_reset_password_code(request, input_data)
         return make_response(response, status)
     
+class CheckResetPasswordCodeResource(Resource):
     @staticmethod
-    def get() -> Response:
-        """GET ALL USERS IN DATABASE"""
-        response, status = user_list()
-        return make_response(response, status)
-    
-    # def get(self, todo_id=None):
-    #     if todo_id:
-    #         todo = Todo.query.filter_by(id=todo_id).first()
-    #         return marshal(todo, todo_fields)
-    #     else:
-    #         args = request.args.to_dict()
-    #         limit = args.get('limit', 0)
-    #         offset = args.get('offset', 0)
-
-    #         args.pop('limit', None)
-    #         args.pop('offset', None)
-
-    #         todo = Todo.query.filter_by(**args).order_by(Todo.id)
-    #         if limit:
-    #             todo = todo.limit(limit)
-
-    #         if offset:
-    #             todo = todo.offset(offset)
-
-    #         todo = todo.all()
-
-    #         return marshal({
-    #             'count': len(todo),
-    #             'todos': [marshal(t, todo_fields) for t in todo]
-    #         }, todo_list_fields)
-
-    
-    def put(self, user_id=None):
-       
+    def post() -> Response:
+        """
+        POST response method for creating user.
+        :return: JSON object
+        """
         input_data = request.get_json()
-        response, status = edit_user(request, input_data,user_id)
+        response, status = check_reset_password_code(request, input_data)
         return make_response(response, status)
-
-    def delete(self, user_id=None):
-        
-        response, status = delete_user(user_id)
-        return make_response(response, status)
-
-class UserListApi(Resource): 
+    
+class ResetPasswordResource(Resource):
     @staticmethod
-    def get() -> Response:
-        """GET ALL USERS IN DATABASE"""
-        response, status = user_list()
+    def post() -> Response:
+        """
+        POST response method for creating user.
+        :return: JSON object
+        """
+        input_data = request.get_json()
+        response, status = reset_password(request, input_data)
+        return make_response(response, status)
+    
+class SendVerifyEmailCodeResource(Resource):
+    @staticmethod
+    def post() -> Response:
+        """
+        POST response method for creating user.
+        :return: JSON object
+        """
+        # input_data = request.get_json()
+        response, status = send_verify_email_code(request)
+        return make_response(response, status)
+    
+class VerifyEmailResource(Resource):
+    @staticmethod
+    def post() -> Response:
+        """
+        POST response method for creating user.
+        :return: JSON object
+        """
+        input_data = request.get_json()
+        response, status = verify_email(request, input_data)
+        return make_response(response, status)
+
+class UpdateNoticifactionDeviceIdResource(Resource):
+    @staticmethod
+    def post() -> Response:
+        """
+        POST response method for creating user.
+        :return: JSON object
+        """
+        input_data = request.get_json()
+        response, status = update_notification_device_id(request, input_data)
         return make_response(response, status)
